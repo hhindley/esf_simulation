@@ -35,13 +35,43 @@ function setupUI() {
   ui.innerHTML = "";
 
   if (state === "chooseCharacter") {
-    ui.innerHTML = `
-      <button onclick="choose('bacteria')">🦠 Bacteria</button>
-      <button onclick="choose('superbug')">🧬 Superbug</button>
-      <button onclick="choose('virus')">🧫 Virus</button>
-    `;
-  }
+  ui.innerHTML = `
+    <button onclick="choose('bacteria')" class="char-btn">
+      <img src="bac/bac1.png" alt="Bacteria">
+    </button>
 
+    <button onclick="choose('superbug')" class="char-btn">
+      <img src="bac/bac2.png" alt="Superbug">
+    </button>
+
+    <button onclick="choose('virus')" class="char-btn">
+      <img src="bac/bac3.png" alt="Virus">
+    </button>
+
+    <button onclick="choose('bacteria')" class="char-btn">
+      <img src="bac/sbac1.png" alt="Bacteria">
+    </button>
+
+    <button onclick="choose('superbug')" class="char-btn">
+      <img src="bac/sbac2.png" alt="Superbug">
+    </button>
+
+    <button onclick="choose('virus')" class="char-btn">
+      <img src="bac/sbac3.png" alt="Virus">
+    </button>
+
+    <button onclick="choose('bacteria')" class="char-btn">
+      <img src="bac/v1.png" alt="Bacteria">
+    </button>
+
+    <button onclick="choose('superbug')" class="char-btn">
+      <img src="bac/v2.png" alt="Superbug">
+    </button>
+
+  `;
+}
+
+  
   if (state === "confirmAntibiotic") {
     ui.innerHTML = `
       <p>The patient is unwell with an infection.</p>

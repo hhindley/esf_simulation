@@ -1,0 +1,16 @@
+.char-btn {
+  background: none;
+  border: none;
+  cursor: pointer;
+  padding: 10px;
+}
+
+.char-btn img {
+  width: 100px;      /* adjust size */
+  height: auto;
+  transition: transform 0.2s;
+}
+
+.char-btn:hover img {
+  transform: scale(1.1);
+}
