@@ -35,6 +35,7 @@ function draw() {
   if (state === "chooseCharacter") drawIntro();
   else if (state === "showInitialInfection") showInitialInfection();
   else if (state === "showInfectionSpread") showInfectionSpread();
+  else if (state === "confirmAntibiotic") showInfectionSpread();
   else if (state === "runScenario") runScenario();
   else if (state === "runNoTreatment") runNoTreatment();
 }
@@ -146,14 +147,11 @@ function getConfirmDishLayout() {
 
 function getSelectedCharacterLabel() {
   const labels = {
-    "bac/bac1.png": "bacteria",
-    "bac/bac2.png": "bacteria",
-    "bac/bac3.png": "bacteria",
-    "bac/sbac1.png": "superbug",
+    "bac/ecoli.png": "bacteria",
+    "bac/staph.png": "bacteria",
     "bac/sbac2.png": "superbug",
-    "bac/sbac3.png": "superbug",
-    "bac/v1.png": "virus",
-    "bac/v2.png": "virus"
+    "bac/mrsa.png": "superbug",
+    "bac/covid.png": "virus"
   };
 
   return labels[selectedSpritePath] || "infection";
@@ -265,58 +263,47 @@ function setupUI() {
   if (state === "chooseCharacter") {
   ui.innerHTML = `
     <section class="char-section">
-      <h2 class="section-heading">Bacteria</h2>
+      <p class="char-intro">Pick one of these microbes to learn about:</p>
       <div class="char-grid">
-        <button onclick="choose('bacteria', 'bac/bac1.png')" class="char-btn">
-          <img src="bac/bac1.png" alt="Bacteria 1">
+        <button onclick="choose('bacteria', 'bac/ecoli.png')" class="char-btn" title="E. coli bacteria">
+          <img src="bac/ecoli.png" alt="E. coli Bacteria">
+          <div class="char-label">Bacteria</div>
         </button>
-        <button onclick="choose('bacteria', 'bac/bac2.png')" class="char-btn">
-          <img src="bac/bac2.png" alt="Bacteria 2">
+        <button onclick="choose('bacteria', 'bac/staph.png')" class="char-btn" title="Staph bacteria">
+          <img src="bac/staph.png" alt="Staph Bacteria">
+          <div class="char-label">Bacteria</div>
         </button>
-        <button onclick="choose('bacteria', 'bac/bac3.png')" class="char-btn">
-          <img src="bac/bac3.png" alt="Bacteria 3">
+        <button onclick="choose('virus', 'bac/covid.png')" class="char-btn" title="Virus">
+          <img src="bac/covid.png" alt="Virus">
+          <div class="char-label">Virus</div>
+        </button>
+        <button onclick="choose('superbug', 'bac/mrsa.png')" class="char-btn" title="Superbug - resistant bacteria">
+          <img src="bac/mrsa.png" alt="Superbug (MRSA)">
+          <div class="char-label">Superbug</div>
         </button>
       </div>
     </section>
-
-    <section class="char-section">
-      <h2 class="section-heading">Superbugs</h2>
-      <div class="char-grid">
-        <button onclick="choose('superbug', 'bac/sbac1.png')" class="char-btn">
-          <img src="bac/sbac1.png" alt="Superbug 1">
-        </button>
-        <button onclick="choose('superbug', 'bac/sbac2.png')" class="char-btn">
-          <img src="bac/sbac2.png" alt="Superbug 2">
-        </button>
-        <button onclick="choose('superbug', 'bac/sbac3.png')" class="char-btn">
-          <img src="bac/sbac3.png" alt="Superbug 3">
-        </button>
-      </div>
-    </section>
-
-    <section class="char-section">
-      <h2 class="section-heading">Virus</h2>
-      <div class="char-grid">
-        <button onclick="choose('virus', 'bac/v1.png')" class="char-btn">
-          <img src="bac/v1.png" alt="Virus 1">
-        </button>
-        <button onclick="choose('virus', 'bac/v2.png')" class="char-btn">
-          <img src="bac/v2.png" alt="Virus 2">
-        </button>
-      </div>
-    </section>
-
   `;
 }
 
   
   if (state === "confirmAntibiotic") {
+    const characterLabel = getSelectedCharacterLabel();
+    let treatmentText = "Would you like to treat it with antibiotics?";
+    
+    if (scenario === "virus") {
+      treatmentText = "Would you like to try antibiotics? (Hint: antibiotics work on bacteria, not viruses!)";
+    } else if (scenario === "superbug") {
+      treatmentText = "This is a superbug that's already resistant to antibiotics. Would you like to try treating it anyway?";
+    }
+    
     ui.innerHTML = `
-      <p class="prompt-title"><strong>Oh no!</strong> It looks like there's an infection.</p>
-      <p class="prompt-subtitle">Let's test this in a petri dish. Would you like to treat with antibiotics?</p>
+      <p class="prompt-title"><strong>Oh no!</strong> An infection has started!</p>
+      <p class="prompt-subtitle">We can see the ${characterLabel} spreading in a petri dish.</p>
+      <p class="prompt-subtitle" style="margin-top: 14px;">${treatmentText}</p>
       <div class="decision-row">
         <button class="decision-btn yes" onclick="giveAntibiotic()">Yes, treat it</button>
-        <button class="decision-btn no" onclick="skipAntibiotic()">No, leave it</button>
+        <button class="decision-btn no" onclick="skipAntibiotic()">No, don't treat</button>
       </div>
     `;
 
@@ -329,7 +316,13 @@ function setupUI() {
     }
   }
 
-  if (state === "runScenario" && resetShown) {
+  if (state === "runScenario" && resetShown && scenario !== "bacteria") {
+    if (bottomUI) {
+      bottomUI.innerHTML = getEndActionsHTML();
+    }
+  }
+
+  if (state === "runScenario" && resetShown && scenario === "bacteria") {
     if (bottomUI) {
       bottomUI.innerHTML = getEndActionsHTML();
     }
@@ -338,22 +331,54 @@ function setupUI() {
   if (state === "runScenario" && !resetShown) {
     const characterLabel = getSelectedCharacterLabel();
     let runTitle;
+    let additionalMessage = "";
     
     if (resistantRebound) {
-      runTitle = "Uh oh, the bacteria has developed resistance to this antibiotic.";
+      if (scenario === "virus") {
+        runTitle = "❌ Antibiotics don't work on viruses! The virus keeps growing.";
+      } else if (scenario === "superbug") {
+        runTitle = "❌ This superbug is already resistant to antibiotics. They won't work!";
+        additionalMessage = `<p class="run-subtitle">This is why we need research into antibiotic resistance and how we can develop new treatments for resistant infections. Scientists are working to find new medicines and strategies to fight superbugs!</p>`;
+      } else {
+        runTitle = "⚠️ Oh no! The bacteria developed resistance to the antibiotic.";
+      }
     } else {
       runTitle =
         scenario === "bacteria"
-          ? `Let's see what happens when we treat these ${characterLabel} with an antibiotic.`
-          : `Let's see what happens when we treat ${characterLabel} with an antibiotic.`;
+          ? `Let's watch what happens when we treat these ${characterLabel} with antibiotics...`
+          : `Let's watch what happens when we treat the ${characterLabel} with antibiotics...`;
     }
 
-    ui.innerHTML = `<p class="run-title">🧪 ${runTitle}</p>`;
+    ui.innerHTML = `<p class="run-title">${runTitle}</p>${additionalMessage}`;
+  }
+
+  if (state === "runNoTreatment" && !resetShown) {
+    const characterLabel = getSelectedCharacterLabel();
+    ui.innerHTML = `<p class="run-title">⚠️ Without treatment, the ${characterLabel} keeps spreading...`;
   }
 
   if (state === "runNoTreatment" && resetShown) {
+    let messageText = "";
+    
+    if (scenario === "virus") {
+      messageText = `<p class="run-title">🎉 Yay! You did the right thing! This is a virus, so it requires different treatment than antibiotics. Antibiotics only work on bacteria, not viruses. A virus needs its own special treatment!</p>`;
+    } else if (scenario === "superbug") {
+      messageText = `<p class="run-title">✓ That was the right choice! These bacteria are resistant to these antibiotics. We're better off finding out more about the infection and then making a more informed treatment strategy.</p>`;
+    } else {
+      messageText = `<p class="run-title">Without proper treatment, the infection keeps growing and the person gets sicker.</p>`;
+    }
+    
+    if (ui) {
+      ui.innerHTML = messageText;
+    }
+    
     if (bottomUI) {
-      bottomUI.innerHTML = getEndActionsHTML();
+      bottomUI.innerHTML = `
+        <div class="end-actions">
+          <button class="decision-btn yes" onclick="backToChooseCharacter()">Start again with treatment</button>
+          <button class="reset-btn" onclick="backToChooseCharacter()">Try another infection</button>
+        </div>
+      `;
     }
   }
   
@@ -410,6 +435,27 @@ window.giveAntibiotic = function() {
   reboundStartTime = 0;
   stoppedTreatmentEarly = false;
   earlyStopStartTime = 0;
+  
+  // Virus treatment always fails immediately
+  if (scenario === "virus") {
+    resistantRebound = true;
+    reboundStartTime = 0;
+    nextActionTime = 360;
+  }
+  // Superbug is always resistant from the start
+  else if (scenario === "superbug") {
+    resistantRebound = true;
+    reboundStartTime = 0;
+    nextActionTime = 360;
+  }
+  // Bacteria have random resistance chance
+  else {
+    const jumpedToResistance = maybeTriggerRandomResistance(timer, 0.06);
+    if (jumpedToResistance) {
+      nextActionTime = timer + 360;
+    }
+  }
+  
   setupUI();
 
   // Keep the exact dish state from the previous slide when available.
@@ -420,12 +466,6 @@ window.giveAntibiotic = function() {
 
   // First antibiotic dose
   antibioticDrops = [createAntibioticDrop(0)];
-
-  // Occasionally resistance appears early, by chance (kept lower to make success more achievable).
-  const jumpedToResistance = maybeTriggerRandomResistance(timer, 0.06);
-  if (jumpedToResistance) {
-    nextActionTime = timer + 360;
-  }
 };
 
 window.addMoreAntibiotic = function() {
@@ -490,7 +530,7 @@ window.skipAntibiotic = function() {
   timer = 0;
   resetShown = false;
   antibioticDoseCount = 0;
-  nextActionTime = 600;
+  nextActionTime = 0;
   resistantRebound = false;
   reboundStartTime = 0;
   stoppedTreatmentEarly = false;
@@ -627,40 +667,83 @@ function runNoTreatment() {
   timer++;
   drawPetriDish();
 
-  // Infection spreads when no antibiotic is used
+  const layout = getConfirmDishLayout();
+  const cx = layout.cx;
+  const cy = layout.cy;
+  const spreadRadius = layout.microbeRadius + 20;
+
+  // Infection spreads rapidly when no antibiotic is used, within dish bounds
   if (frameCount % 20 === 0 && bacteria.length < 200) {
+    const p = randomPointInCircle(cx, cy, spreadRadius);
     bacteria.push({
-      x: random(width/2 - 180, width/2 + 180),
-      y: random(height/2 - 180, height/2 + 180),
-      alpha: 255
+      x: p.x,
+      y: p.y,
+      alpha: 255,
+      rot: random(TWO_PI),
+      sizeScale: random(0.88, 1.15)
     });
   }
 
+  const characterLabel = getSelectedCharacterLabel();
+
   if (scenario === "bacteria") {
     for (let b of bacteria) {
-      fill(0, 180, 0, b.alpha);
-      noStroke();
-      ellipse(b.x, b.y, 8);
+      if (selectedSpriteImage) {
+        imageMode(CENTER);
+        push();
+        tint(255, b.alpha);
+        translate(b.x, b.y);
+        rotate(b.rot || 0);
+        const size = 18 * (b.sizeScale || 1);
+        image(selectedSpriteImage, 0, 0, size, size);
+        pop();
+      } else {
+        fill(0, 180, 0, b.alpha);
+        noStroke();
+        ellipse(b.x, b.y, 8);
+      }
     }
   }
 
   if (scenario === "superbug") {
     for (let b of bacteria) {
-      fill(150, 0, 150, b.alpha);
-      noStroke();
-      ellipse(b.x, b.y, 8);
+      if (selectedSpriteImage) {
+        imageMode(CENTER);
+        push();
+        tint(255, b.alpha);
+        translate(b.x, b.y);
+        rotate(b.rot || 0);
+        const size = 18 * (b.sizeScale || 1);
+        image(selectedSpriteImage, 0, 0, size, size);
+        pop();
+      } else {
+        fill(150, 0, 150, b.alpha);
+        noStroke();
+        ellipse(b.x, b.y, 8);
+      }
     }
   }
 
   if (scenario === "virus") {
     for (let b of bacteria) {
-      fill(255, 100, 0, b.alpha);
-      noStroke();
-      push();
-      translate(b.x, b.y);
-      rotate(frameCount * 0.01);
-      triangle(-6, -6, 6, -6, 0, 6);
-      pop();
+      if (selectedSpriteImage) {
+        imageMode(CENTER);
+        push();
+        tint(255, b.alpha);
+        translate(b.x, b.y);
+        rotate(b.rot || 0);
+        const size = 18 * (b.sizeScale || 1);
+        image(selectedSpriteImage, 0, 0, size, size);
+        pop();
+      } else {
+        fill(255, 100, 0, b.alpha);
+        noStroke();
+        push();
+        translate(b.x, b.y);
+        rotate(frameCount * 0.01);
+        triangle(-6, -6, 6, -6, 0, 6);
+        pop();
+      }
     }
   }
 
@@ -668,6 +751,7 @@ function runNoTreatment() {
 
   if (timer > nextActionTime && !resetShown) {
     resetShown = true;
+    setupUI();
   }
 }
 
@@ -913,44 +997,210 @@ function runBacteriaScenario() {
 
 // ====== Superbug Scenario ======
 function runSuperbugScenario() {
+  if (antibioticDrops.length === 0) return;
+
+  const arrivalFrames = BACTERIA_ARRIVAL_FRAMES;
+  const effectFrames = BACTERIA_EFFECT_FRAMES;
+
+  const dishCx = width / 2;
+  const dishCy = height / 2;
+
+  // Draw antibiotic drops coming in (but they have no effect on superbug)
+  for (let i = 0; i < antibioticDrops.length; i++) {
+    const drop = antibioticDrops[i];
+    const localTime = max(0, timer - (drop.startFrame || 0));
+    const localAnim = min(1, localTime / arrivalFrames);
+    const dropAnimEase = easeOutCubic(localAnim);
+
+    if (i === 0) antibioticDropAnim = localAnim;
+
+    const startAngle = atan2(drop.y - dishCy, drop.x - dishCx);
+    const startRadius = 176;
+    const startX = dishCx + cos(startAngle) * startRadius;
+    const startY = dishCy + sin(startAngle) * startRadius;
+
+    const incomingX = lerp(startX, drop.x, dropAnimEase);
+    const incomingY = lerp(startY, drop.y, dropAnimEase);
+
+    // Antibiotic drop flying into the dish
+    fill(20, 150, 255, 180);
+    noStroke();
+    ellipse(incomingX, incomingY, 24, 24);
+    fill(120, 210, 255, 180);
+    ellipse(incomingX - 4, incomingY - 4, 8, 8);
+    drawAntibioticIcon(incomingX, incomingY, 0.62);
+
+    // Show antibiotic zone but no killing effect
+    if (localAnim >= 1) {
+      fill(0, 150, 255, 50);
+      noStroke();
+      ellipse(drop.x, drop.y, 150);
+      drawAntibioticIcon(drop.x, drop.y, 0.68);
+    }
+  }
+
+  // When resistant, superbug cells turn red and rapidly regrow
+  if (resistantRebound) {
+    if (frameCount % 7 === 0 && bacteria.length < 140) {
+      const p = randomPointInCircle(dishCx, dishCy, 170);
+      bacteria.push({
+        x: p.x,
+        y: p.y,
+        alpha: 255,
+        rot: random(TWO_PI),
+        sizeScale: random(0.88, 1.15)
+      });
+    }
+
+    let aliveCount = 0;
+
+    for (let b of bacteria) {
+      b.alpha = min(255, b.alpha + 1.6);
+
+      if (selectedSpriteImage) {
+        imageMode(CENTER);
+        push();
+        tint(255, 70, 70, b.alpha);
+        translate(b.x, b.y);
+        rotate(b.rot || 0);
+        const size = 18 * (b.sizeScale || 1);
+        image(selectedSpriteImage, 0, 0, size, size);
+        pop();
+      } else {
+        fill(220, 70, 70, b.alpha);
+        noStroke();
+        ellipse(b.x, b.y, 8);
+      }
+
+      if (b.alpha > 0) aliveCount++;
+    }
+
+    const reboundProgress = constrain((timer - reboundStartTime) / 180, 0, 1);
+    const healthProgress = constrain(0.45 - reboundProgress * 0.35, 0.05, 0.45);
+    drawPatientArrow(false, healthProgress);
+    return;
+  }
+
+  // Superbug cells keep growing despite antibiotic (before resistance)
+  if (frameCount % 10 === 0 && bacteria.length < 160) {
+    const p = randomPointInCircle(dishCx, dishCy, 170);
+    bacteria.push({
+      x: p.x,
+      y: p.y,
+      alpha: 255,
+      rot: random(TWO_PI),
+      sizeScale: random(0.88, 1.15)
+    });
+  }
+
+  let aliveCount = bacteria.length;
+
   for (let b of bacteria) {
-    if (b.alpha > 0) {
+    if (selectedSpriteImage) {
+      imageMode(CENTER);
+      push();
+      tint(255, b.alpha);
+      translate(b.x, b.y);
+      rotate(b.rot || 0);
+      const size = 18 * (b.sizeScale || 1);
+      image(selectedSpriteImage, 0, 0, size, size);
+      pop();
+    } else {
       fill(150, 0, 150, b.alpha);
       noStroke();
       ellipse(b.x, b.y, 8);
     }
   }
 
-  // Antibiotic zone (for visualization)
-  for (let drop of antibioticDrops) {
-    fill(0, 150, 255, 120);
-    noStroke();
-    ellipse(drop.x, drop.y, 100);
-  }
-
-  drawPatientArrow(false, 0.06); // superbug not cured
+  // Health declining as superbug spreads
+  const spreadProgress = constrain((timer - reboundStartTime) / 400, 0, 1);
+  const healthProgress = constrain(0.6 - spreadProgress * 0.5, 0.05, 0.6);
+  drawPatientArrow(false, healthProgress);
 }
 
 // ====== Virus Scenario ======
 function runVirusScenario() {
+  if (antibioticDrops.length === 0) return;
+
+  const arrivalFrames = BACTERIA_ARRIVAL_FRAMES;
+  const effectFrames = BACTERIA_EFFECT_FRAMES;
+
+  const dishCx = width / 2;
+  const dishCy = height / 2;
+
+  // Draw antibiotic drops coming in (but they have no effect on virus)
+  for (let i = 0; i < antibioticDrops.length; i++) {
+    const drop = antibioticDrops[i];
+    const localTime = max(0, timer - (drop.startFrame || 0));
+    const localAnim = min(1, localTime / arrivalFrames);
+    const dropAnimEase = easeOutCubic(localAnim);
+
+    if (i === 0) antibioticDropAnim = localAnim;
+
+    const startAngle = atan2(drop.y - dishCy, drop.x - dishCx);
+    const startRadius = 176;
+    const startX = dishCx + cos(startAngle) * startRadius;
+    const startY = dishCy + sin(startAngle) * startRadius;
+
+    const incomingX = lerp(startX, drop.x, dropAnimEase);
+    const incomingY = lerp(startY, drop.y, dropAnimEase);
+
+    // Antibiotic drop flying into the dish
+    fill(20, 150, 255, 180);
+    noStroke();
+    ellipse(incomingX, incomingY, 24, 24);
+    fill(120, 210, 255, 180);
+    ellipse(incomingX - 4, incomingY - 4, 8, 8);
+    drawAntibioticIcon(incomingX, incomingY, 0.62);
+
+    // Show antibiotic zone but no killing effect
+    if (localAnim >= 1) {
+      fill(0, 150, 255, 50);
+      noStroke();
+      ellipse(drop.x, drop.y, 150);
+      drawAntibioticIcon(drop.x, drop.y, 0.68);
+    }
+  }
+
+  // Virus cells keep growing despite antibiotic
+  if (frameCount % 10 === 0 && bacteria.length < 160) {
+    const p = randomPointInCircle(width / 2, height / 2, 170);
+    bacteria.push({
+      x: p.x,
+      y: p.y,
+      alpha: 255,
+      rot: random(TWO_PI),
+      sizeScale: random(0.88, 1.15)
+    });
+  }
+
+  let aliveCount = bacteria.length;
+
   for (let b of bacteria) {
-    fill(255, 100, 0, b.alpha);
-    noStroke();
-    push();
-    translate(b.x, b.y);
-    rotate(frameCount * 0.01);
-    triangle(-6, -6, 6, -6, 0, 6);
-    pop();
+    if (selectedSpriteImage) {
+      imageMode(CENTER);
+      push();
+      tint(255, b.alpha);
+      translate(b.x, b.y);
+      rotate(b.rot || 0);
+      const size = 18 * (b.sizeScale || 1);
+      image(selectedSpriteImage, 0, 0, size, size);
+      pop();
+    } else {
+      fill(255, 100, 0, b.alpha);
+      noStroke();
+      push();
+      translate(b.x, b.y);
+      rotate(frameCount * 0.01);
+      triangle(-6, -6, 6, -6, 0, 6);
+      pop();
+    }
   }
 
-  // Antibiotic zone (no effect)
-  for (let drop of antibioticDrops) {
-    fill(0, 150, 255, 120);
-    noStroke();
-    ellipse(drop.x, drop.y, 100);
-  }
-
-  drawPatientArrow(false, 0); // virus not cured
+  // Health declining as virus spreads
+  const spreadProgress = constrain((timer - reboundStartTime) / 400, 0, 1);
+  const healthProgress = constrain(0.6 - spreadProgress * 0.5, 0.05, 0.6);
+  drawPatientArrow(false, healthProgress);
 }
 
 // ====== Draw Patient Arrow ======
