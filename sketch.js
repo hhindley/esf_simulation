@@ -214,7 +214,7 @@ function getEndActionsHTML() {
   if (scenario === "bacteria" && resistantRebound) {
     return `
       <div class="end-actions">
-        <button class="reset-btn" onclick="backToChooseCharacter()">Back to start</button>
+        <button class="reset-btn" onclick="backToChooseCharacter()">Start again</button>
       </div>
     `;
   }
@@ -283,6 +283,7 @@ function setupUI() {
         </button>
       </div>
     </section>
+    <p class="ai-disclaimer">Images generated with AI</p>
   `;
 }
 
@@ -373,12 +374,22 @@ function setupUI() {
     }
     
     if (bottomUI) {
-      bottomUI.innerHTML = `
+      let buttonsHTML = `
         <div class="end-actions">
           <button class="decision-btn yes" onclick="backToChooseCharacter()">Start again with treatment</button>
           <button class="reset-btn" onclick="backToChooseCharacter()">Try another infection</button>
         </div>
       `;
+      
+      if (scenario === "bacteria" || scenario === "virus" || scenario === "superbug") {
+        buttonsHTML = `
+          <div class="end-actions">
+            <button class="reset-btn" onclick="backToChooseCharacter()">Start again</button>
+          </div>
+        `;
+      }
+      
+      bottomUI.innerHTML = buttonsHTML;
     }
   }
   
