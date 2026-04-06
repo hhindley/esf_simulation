@@ -205,6 +205,16 @@ body[data-screen="laptop-14"] .char-grid {
   gap: clamp(10px, 1.4vw, 16px);
 }
 
+body[data-screen="laptop-14"] .human-response-panel {
+  box-shadow: 0 4px 10px rgba(30, 70, 130, 0.08);
+  border-color: rgba(140, 170, 210, 0.28);
+}
+
+body[data-screen="laptop-14"] .decision-btn,
+body[data-screen="laptop-14"] .reset-btn {
+  box-shadow: 0 5px 10px rgba(20, 55, 120, 0.12);
+}
+
 .end-actions {
   display: flex;
   justify-content: center;

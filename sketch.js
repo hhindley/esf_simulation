@@ -19,6 +19,16 @@ let reboundStartTime = 0;
 let stoppedTreatmentEarly = false;
 let earlyStopStartTime = 0;
 let lastHumanResponseKey = "";
+let petriDishLayer = null;
+let petriDishCacheKey = "";
+
+function setUIMessageIfChanged(key, html) {
+  const ui = document.getElementById("ui");
+  if (!ui) return;
+  if (ui.dataset.messageKey === key) return;
+  ui.innerHTML = html;
+  ui.dataset.messageKey = key;
+}
 
 // ====== Setup ======
 function setup() {
@@ -41,6 +51,32 @@ function capForDevice(defaultCap, lowCap) {
 
 function tickEvery(defaultFrames, lowSpecFrames) {
   return frameCount % (isLowSpecDevice() ? lowSpecFrames : defaultFrames) === 0;
+}
+
+function getPetriDishCacheKey(layout) {
+  return `${width}x${height}|${layout.cx.toFixed(2)}|${layout.cy.toFixed(2)}|${layout.dishSize.toFixed(2)}`;
+}
+
+function ensurePetriDishLayer(layout) {
+  const cacheKey = getPetriDishCacheKey(layout);
+  if (petriDishLayer && petriDishCacheKey === cacheKey) return;
+
+  petriDishLayer = createGraphics(width, height);
+  petriDishLayer.clear();
+
+  const outer = layout.dishSize;
+  const inner = layout.dishSize - 24;
+
+  petriDishLayer.stroke(168, 182, 200);
+  petriDishLayer.strokeWeight(4);
+  petriDishLayer.fill(244, 248, 255);
+  petriDishLayer.ellipse(layout.cx, layout.cy, outer, outer);
+
+  petriDishLayer.noStroke();
+  petriDishLayer.fill(255, 254, 240);
+  petriDishLayer.ellipse(layout.cx, layout.cy, inner, inner);
+
+  petriDishCacheKey = cacheKey;
 }
 
 // ====== Draw Loop ======
@@ -272,6 +308,7 @@ function setupUI() {
   const bottomUI = document.getElementById("bottom-ui");
   const title = document.getElementById("screen-title");
   ui.innerHTML = "";
+  ui.removeAttribute("data-message-key");
   if (bottomUI) bottomUI.innerHTML = "";
   lastHumanResponseKey = "";
 
@@ -375,12 +412,15 @@ function setupUI() {
           : `Let's watch what happens when we treat the ${characterLabel} with antibiotics...`;
     }
 
-    ui.innerHTML = `<p class="run-title">${runTitle}</p>${additionalMessage}`;
+    setUIMessageIfChanged("runScenario-main", `<p class="run-title">${runTitle}</p>${additionalMessage}`);
   }
 
   if (state === "runNoTreatment" && !resetShown) {
     const characterLabel = getSelectedCharacterLabel();
-    ui.innerHTML = `<p class="run-title">⚠️ Without treatment, the ${characterLabel} keeps spreading...`;
+    setUIMessageIfChanged(
+      "runNoTreatment-progress",
+      `<p class="run-title">⚠️ Without treatment, the ${characterLabel} keeps spreading...`
+    );
   }
 
   if (state === "runNoTreatment" && resetShown) {
@@ -404,7 +444,7 @@ function setupUI() {
     }
     
     if (ui) {
-      ui.innerHTML = messageText;
+      setUIMessageIfChanged("runNoTreatment-final", messageText);
     }
     
     // Don't modify bottomUI here - let drawPatientArrow() handle the panel + buttons
@@ -667,17 +707,9 @@ window.reset = function() {
 // ====== Petri Dish ======
 function drawPetriDish() {
   const layout = getConfirmDishLayout();
-  const outer = layout.dishSize;
-  const inner = layout.dishSize - 24;
-
-  stroke(168, 182, 200);
-  strokeWeight(4);
-  fill(244, 248, 255);
-  ellipse(layout.cx, layout.cy, outer, outer);
-
-  noStroke();
-  fill(255, 254, 240);
-  ellipse(layout.cx, layout.cy, inner, inner);
+  ensurePetriDishLayer(layout);
+  imageMode(CORNER);
+  image(petriDishLayer, 0, 0);
 }
 
 // ====== Run Scenario ======
@@ -705,7 +737,7 @@ function runNoTreatment() {
   const spreadRadius = layout.microbeRadius + 20;
 
   // Infection spreads rapidly when no antibiotic is used, within dish bounds
-  if (tickEvery(20, 28) && bacteria.length < capForDevice(200, 150)) {
+  if (tickEvery(20, 32) && bacteria.length < capForDevice(200, 150)) {
     const p = randomPointInCircle(cx, cy, spreadRadius);
     bacteria.push({
       x: p.x,
@@ -795,10 +827,10 @@ function runBacteriaScenario() {
   const ui = document.getElementById("ui");
   if (ui && resistantRebound) {
     const runTitle = "Uh oh, the bacteria has developed resistance to this antibiotic.";
-    ui.innerHTML = `
+    setUIMessageIfChanged("bacteria-resistant", `
       <p class="run-title">❌ ${runTitle}</p>
       <p class="run-subtitle">Repeated exposure to antibiotics means bacteria are more able to develop resistance.</p>
-    `;
+    `);
   }
 
   const arrivalFrames = BACTERIA_ARRIVAL_FRAMES;
@@ -868,7 +900,7 @@ function runBacteriaScenario() {
     const spreadRadius = layout.microbeRadius + 20;
 
     // After repeated dosing, resistant bacteria regrow and patient worsens.
-    if (tickEvery(7, 10) && bacteria.length < capForDevice(140, 115)) {
+    if (tickEvery(7, 12) && bacteria.length < capForDevice(140, 115)) {
       const p = randomPointInCircle(layout.cx, layout.cy, spreadRadius);
       bacteria.push({
         x: p.x,
@@ -911,13 +943,13 @@ function runBacteriaScenario() {
     const spreadRadius = layout.microbeRadius + 20;
 
     if (ui) {
-      ui.innerHTML = `
+      setUIMessageIfChanged("bacteria-remains", `
         <p class="run-title">⚠️ The infection remains.</p>
         <p class="run-subtitle">Enough healthy bacteria remain for the bacteria to survive and the patient doesn't get better.</p>
-      `;
+      `);
     }
 
-    if (tickEvery(14, 18) && bacteria.length < capForDevice(140, 115)) {
+    if (tickEvery(14, 22) && bacteria.length < capForDevice(140, 115)) {
       const p = randomPointInCircle(layout.cx, layout.cy, spreadRadius);
       bacteria.push({
         x: p.x,
@@ -964,9 +996,13 @@ function runBacteriaScenario() {
     for (let effect of doseEffects) {
       if (effect.localAnim < 1) continue;
 
-      const d = dist(b.x, b.y, effect.x, effect.y);
-      if (d < effect.killRadius) alphaDecay += 24;
-      else if (d < effect.fadeRadius) alphaDecay += 3;
+      const dx = b.x - effect.x;
+      const dy = b.y - effect.y;
+      const d2 = dx * dx + dy * dy;
+      const killR2 = effect.killRadius * effect.killRadius;
+      const fadeR2 = effect.fadeRadius * effect.fadeRadius;
+      if (d2 < killR2) alphaDecay += 24;
+      else if (d2 < fadeR2) alphaDecay += 3;
     }
 
     if (alphaDecay > 0) b.alpha -= min(32, alphaDecay);
@@ -1018,7 +1054,10 @@ function runBacteriaScenario() {
   drawPatientArrow(cured, healthProgress);
 
   if (ui && resetShown && !cured) {
-    ui.innerHTML = `<p class="run-title">✅ Great! We've had some successful treatment, would you like to apply more antibiotic?</p>`;
+    setUIMessageIfChanged(
+      "bacteria-more-antibiotic",
+      `<p class="run-title">✅ Great! We've had some successful treatment, would you like to apply more antibiotic?</p>`
+    );
   }
 
   // Show success message when treatment is successful
@@ -1028,10 +1067,10 @@ function runBacteriaScenario() {
   
   if (cured && resetShown) {
     if (ui) {
-      ui.innerHTML = `
+      setUIMessageIfChanged("bacteria-cured", `
         <p class="run-title">🎉 Yay! The infection has been successfully treated.</p>
         <p class="run-subtitle">The antibiotics have killed enough bacteria, and the patient has recovered.</p>
-      `;
+      `);
     }
 
     const bottomUI = document.getElementById("bottom-ui");
@@ -1093,7 +1132,7 @@ function runSuperbugScenario() {
 
   // When resistant, superbug cells turn red and rapidly regrow
   if (resistantRebound) {
-    if (tickEvery(7, 10) && bacteria.length < capForDevice(140, 115)) {
+    if (tickEvery(7, 12) && bacteria.length < capForDevice(140, 115)) {
       const p = randomPointInCircle(dishCx, dishCy, spreadRadius);
       bacteria.push({
         x: p.x,
@@ -1134,7 +1173,7 @@ function runSuperbugScenario() {
   }
 
   // Superbug cells keep growing despite antibiotic (before resistance)
-  if (tickEvery(10, 14) && bacteria.length < capForDevice(160, 130)) {
+  if (tickEvery(10, 16) && bacteria.length < capForDevice(160, 130)) {
     const p = randomPointInCircle(dishCx, dishCy, spreadRadius);
     bacteria.push({
       x: p.x,
@@ -1217,7 +1256,7 @@ function runVirusScenario() {
   }
 
   // Virus cells keep growing despite antibiotic
-  if (tickEvery(10, 14) && bacteria.length < capForDevice(160, 130)) {
+  if (tickEvery(10, 16) && bacteria.length < capForDevice(160, 130)) {
     const p = randomPointInCircle(dishCx, dishCy, spreadRadius);
     bacteria.push({
       x: p.x,
@@ -1324,18 +1363,7 @@ function showInitialInfection() {
   const layout = getConfirmDishLayout();
   const cx = layout.cx;
   const cy = layout.cy;
-  const dishSize = layout.dishSize;
-  const outer = dishSize;
-  const inner = dishSize - 24;
-
-  // Draw petri dish
-  stroke(168, 182, 200);
-  strokeWeight(4);
-  fill(244, 248, 255);
-  ellipse(cx, cy, outer, outer);
-  noStroke();
-  fill(255, 254, 240);
-  ellipse(cx, cy, inner, inner);
+  drawPetriDish();
 
   const characterLabel = getSelectedCharacterLabel();
   
@@ -1372,10 +1400,10 @@ function showInitialInfection() {
   // Show initial infection message
   const ui = document.getElementById("ui");
   if (ui && !ui.innerHTML.includes("Uh oh")) {
-    ui.innerHTML = `
+    setUIMessageIfChanged("initial-infection", `
       <p class="prompt-title"><strong>Uh oh!</strong></p>
       <p class="prompt-subtitle">Looks like this ${characterLabel} has caused an infection.</p>
-    `;
+    `);
   }
 
   // After 120 frames (~2 seconds at 60fps), transition to spread screen
@@ -1391,18 +1419,7 @@ function showInfectionSpread() {
   const layout = getConfirmDishLayout();
   const cx = layout.cx;
   const cy = layout.cy;
-  const dishSize = layout.dishSize;
-  const outer = dishSize;
-  const inner = dishSize - 24;
-
-  // Draw petri dish
-  stroke(168, 182, 200);
-  strokeWeight(4);
-  fill(244, 248, 255);
-  ellipse(cx, cy, outer, outer);
-  noStroke();
-  fill(255, 254, 240);
-  ellipse(cx, cy, inner, inner);
+  drawPetriDish();
 
   // Add bacteria as animation progresses (0-400 frames up to 75 bacteria)
   const spreadProgress = constrain(timer / 400, 0, 1);
@@ -1454,13 +1471,13 @@ function showInfectionSpread() {
   // Show warning message with treatment options
   const ui = document.getElementById("ui");
   if (ui && !ui.innerHTML.includes("If left untreated")) {
-    ui.innerHTML = `
+    setUIMessageIfChanged("infection-spread", `
       <p class="prompt-title"><strong>Uh oh!</strong></p>
       <p class="prompt-subtitle">Looks like this ${characterLabel} has caused an infection.</p>
       <p class="prompt-title" style="margin-top: 14px;"><strong>⚠️ Warning!</strong></p>
       <p class="prompt-subtitle">If left untreated, this infection could spread and become harmful.</p>
       <p class="prompt-subtitle" style="margin-top: 24px; font-weight: bold;">Would you like to treat the infection with antibiotics?</p>
-    `;
+    `);
     
     const bottomUI = document.getElementById("bottom-ui");
     if (bottomUI) {
@@ -1483,18 +1500,7 @@ function drawConfirmPreviewDish() {
   const layout = getConfirmDishLayout();
   const cx = layout.cx;
   const cy = layout.cy;
-  const dishSize = layout.dishSize;
-  const outer = dishSize;
-  const inner = dishSize - 24;
-
-  stroke(168, 182, 200);
-  strokeWeight(4);
-  fill(244, 248, 255);
-  ellipse(cx, cy, outer, outer);
-
-  noStroke();
-  fill(255, 254, 240);
-  ellipse(cx, cy, inner, inner);
+  drawPetriDish();
 
   const r = layout.microbeRadius;
 
