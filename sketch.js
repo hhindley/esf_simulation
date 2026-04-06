@@ -357,6 +357,14 @@ function getEndActionsHTML() {
   `;
 }
 
+function getStartAgainHTML() {
+  return `
+    <div class="end-actions">
+      <button class="reset-btn" data-action="start-again" type="button">Start again</button>
+    </div>
+  `;
+}
+
 // ====== UI Setup ======
 function setupUI() {
   const ui = document.getElementById("ui");
@@ -1145,15 +1153,6 @@ function runBacteriaScenario() {
         <p class="run-subtitle">The antibiotics have killed enough bacteria, and the patient has recovered.</p>
       `);
     }
-
-    const bottomUI = document.getElementById("bottom-ui");
-    if (bottomUI && !bottomUI.innerHTML.includes("Start again")) {
-      bottomUI.innerHTML = `
-        <div class="end-actions" style="display: flex; gap: 12px; justify-content: center;">
-          <button class="reset-btn" data-action="start-again" type="button">Start again</button>
-        </div>
-      `;
-    }
   }
 }
 
@@ -1412,11 +1411,9 @@ function drawPatientArrow(cured, healthProgress = 0) {
     if (resetShown) {
       let actionsHTML;
       if (state === "runNoTreatment") {
-        actionsHTML = `
-          <div class="end-actions">
-            <button class="reset-btn" data-action="start-again" type="button">Start again</button>
-          </div>
-        `;
+        actionsHTML = getStartAgainHTML();
+      } else if (state === "runScenario" && scenario === "bacteria" && cured) {
+        actionsHTML = getStartAgainHTML();
       } else {
         actionsHTML = getEndActionsHTML();
       }
