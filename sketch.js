@@ -24,6 +24,7 @@ let lastHumanResponseKey = "";
 let petriDishLayer = null;
 let petriDishCacheKey = "";
 let appliedFrameRate = null;
+let globalUIActionsBound = false;
 
 function setUIMessageIfChanged(key, html) {
   const ui = document.getElementById("ui");
@@ -40,8 +41,37 @@ function setup() {
   const cnv = createCanvas(getCanvasWidth(), getCanvasHeight());
   cnv.parent("canvas-wrap");
   textAlign(CENTER, CENTER);
+  bindGlobalUIActions();
   applyLaptopPreset();
   setupUI();
+}
+
+function bindGlobalUIActions() {
+  if (globalUIActionsBound || !document) return;
+
+  document.addEventListener("click", (event) => {
+    const rawTarget = event.target;
+    let target = null;
+
+    if (rawTarget instanceof Element) {
+      target = rawTarget;
+    } else if (rawTarget && rawTarget.parentElement instanceof Element) {
+      // Some browsers can report a text node as click target.
+      target = rawTarget.parentElement;
+    }
+
+    if (!target) return;
+
+    const startAgainButton = target.closest('button[data-action="start-again"]');
+    if (!startAgainButton) return;
+
+    event.preventDefault();
+    if (typeof window.backToChooseCharacter === "function") {
+      window.backToChooseCharacter();
+    }
+  });
+
+  globalUIActionsBound = true;
 }
 
 function isLowSpecDevice() {
@@ -292,7 +322,7 @@ function getEndActionsHTML() {
   if (scenario === "bacteria" && resistantRebound) {
     return `
       <div class="end-actions">
-        <button class="reset-btn" onclick="backToChooseCharacter()">Start again</button>
+        <button class="reset-btn" data-action="start-again" type="button">Start again</button>
       </div>
     `;
   }
@@ -300,7 +330,7 @@ function getEndActionsHTML() {
   if (scenario === "bacteria" && stoppedTreatmentEarly) {
     return `
       <div class="end-actions">
-        <button class="reset-btn" onclick="backToChooseCharacter()">Start again</button>
+        <button class="reset-btn" data-action="start-again" type="button">Start again</button>
       </div>
     `;
   }
@@ -314,7 +344,7 @@ function getEndActionsHTML() {
   if (!showDoseChoices) {
     return `
       <div class="end-actions">
-        <button class="reset-btn" onclick="backToChooseCharacter()">Start again</button>
+        <button class="reset-btn" data-action="start-again" type="button">Start again</button>
       </div>
     `;
   }
@@ -1120,7 +1150,7 @@ function runBacteriaScenario() {
     if (bottomUI && !bottomUI.innerHTML.includes("Start again")) {
       bottomUI.innerHTML = `
         <div class="end-actions" style="display: flex; gap: 12px; justify-content: center;">
-          <button class="reset-btn" onclick="backToChooseCharacter()">Start again</button>
+          <button class="reset-btn" data-action="start-again" type="button">Start again</button>
         </div>
       `;
     }
@@ -1384,7 +1414,7 @@ function drawPatientArrow(cured, healthProgress = 0) {
       if (state === "runNoTreatment") {
         actionsHTML = `
           <div class="end-actions">
-            <button class="reset-btn" onclick="backToChooseCharacter()">Start again</button>
+            <button class="reset-btn" data-action="start-again" type="button">Start again</button>
           </div>
         `;
       } else {
