@@ -8,6 +8,8 @@ let antibioticDrops = [];
 let choseAntibiotic = null;
 let selectedSpritePath = null;
 let selectedSpriteImage = null;
+let selectedResistantSpritePath = null;
+let selectedResistantSpriteImage = null;
 let previewMicrobes = [];
 let antibioticDropAnim = 0;
 let antibioticDoseCount = 0;
@@ -214,6 +216,45 @@ function getSelectedCharacterLabel() {
   };
 
   return labels[selectedSpritePath] || "infection";
+}
+
+function getResistantSpritePath(basePath) {
+  const resistantPaths = {
+    "bac/ecoli.png": "bac/ecoli_resistant.png",
+    "bac/staph.png": "bac/staph_resistant.png",
+    "bac/mrsa.png": "bac/mrsa_resistant.png",
+    "bac/sbac2.png": "bac/sbac2_resistant.png"
+  };
+
+  return resistantPaths[basePath] || null;
+}
+
+function buildResistantSpriteFromBase(baseImg) {
+  if (!baseImg) return null;
+
+  // Build a red-tinted variant once, then reuse it during resistant rendering.
+  const g = createGraphics(baseImg.width, baseImg.height);
+  g.clear();
+  g.imageMode(CORNER);
+  g.image(baseImg, 0, 0);
+  g.loadPixels();
+
+  for (let i = 0; i < g.pixels.length; i += 4) {
+    const r = g.pixels[i];
+    const gCh = g.pixels[i + 1];
+    const b = g.pixels[i + 2];
+    const a = g.pixels[i + 3];
+    if (a === 0) continue;
+
+    // Keep shading but bias heavily toward red.
+    const luminance = (r + gCh + b) / 3;
+    g.pixels[i] = min(255, luminance * 1.25 + 45);
+    g.pixels[i + 1] = min(255, luminance * 0.5);
+    g.pixels[i + 2] = min(255, luminance * 0.45);
+  }
+
+  g.updatePixels();
+  return g.get();
 }
 
 function createAntibioticDrop(startFrame = 0) {
@@ -472,17 +513,36 @@ window.choose = function(choice, spritePath) {
   generatePreviewMicrobes();
   selectedSpritePath = spritePath || null;
   selectedSpriteImage = null;
+  selectedResistantSpritePath = getResistantSpritePath(selectedSpritePath);
+  selectedResistantSpriteImage = null;
 
   if (selectedSpritePath) {
     loadImage(
       selectedSpritePath,
       (img) => {
         selectedSpriteImage = img;
+
+        // Fallback: create resistant variant once if dedicated asset is missing.
+        if (!selectedResistantSpriteImage) {
+          selectedResistantSpriteImage = buildResistantSpriteFromBase(img);
+        }
       },
       () => {
         selectedSpriteImage = null;
       }
     );
+
+    if (selectedResistantSpritePath) {
+      loadImage(
+        selectedResistantSpritePath,
+        (img) => {
+          selectedResistantSpriteImage = img;
+        },
+        () => {
+          selectedResistantSpriteImage = null;
+        }
+      );
+    }
   }
 
   state = "showInitialInfection";
@@ -639,6 +699,8 @@ window.backToChooseCharacter = function() {
   choseAntibiotic = null;
   selectedSpritePath = null;
   selectedSpriteImage = null;
+  selectedResistantSpritePath = null;
+  selectedResistantSpriteImage = null;
   previewMicrobes = [];
   setupUI();
 };
@@ -713,6 +775,8 @@ window.reset = function() {
   choseAntibiotic = null;
   selectedSpritePath = null;
   selectedSpriteImage = null;
+  selectedResistantSpritePath = null;
+  selectedResistantSpriteImage = null;
   previewMicrobes = [];
   setupUI();
 };
@@ -927,14 +991,14 @@ function runBacteriaScenario() {
     for (let b of bacteria) {
       b.alpha = min(255, b.alpha + 1.6);
 
-      if (!isLowSpecDevice() && selectedSpriteImage) {
+      if (!isLowSpecDevice() && (selectedResistantSpriteImage || selectedSpriteImage)) {
         imageMode(CENTER);
         push();
-        tint(255, 70, 70, b.alpha);
+        tint(255, b.alpha);
         translate(b.x, b.y);
         rotate(b.rot || 0);
         const size = 18 * (b.sizeScale || 1);
-        image(selectedSpriteImage, 0, 0, size, size);
+        image(selectedResistantSpriteImage || selectedSpriteImage, 0, 0, size, size);
         pop();
       } else {
         fill(220, 70, 70, b.alpha);
@@ -1161,14 +1225,14 @@ function runSuperbugScenario() {
     for (let b of bacteria) {
       b.alpha = min(255, b.alpha + 1.6);
 
-      if (!isLowSpecDevice() && selectedSpriteImage) {
+      if (!isLowSpecDevice() && (selectedResistantSpriteImage || selectedSpriteImage)) {
         imageMode(CENTER);
         push();
-        tint(255, 70, 70, b.alpha);
+        tint(255, b.alpha);
         translate(b.x, b.y);
         rotate(b.rot || 0);
         const size = 18 * (b.sizeScale || 1);
-        image(selectedSpriteImage, 0, 0, size, size);
+        image(selectedResistantSpriteImage || selectedSpriteImage, 0, 0, size, size);
         pop();
       } else {
         fill(220, 70, 70, b.alpha);
