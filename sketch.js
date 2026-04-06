@@ -45,15 +45,11 @@ function getCanvasWidth() {
 }
 
 function getCanvasHeight() {
-  if (windowWidth <= 1440) {
-    return Math.max(450, Math.floor(windowHeight * 0.57)); // ~13" laptops
+  if (windowWidth <= 750) {
+    return Math.max(370, Math.floor(windowHeight * 0.54)); // HP EliteBook 14
   }
 
-  if (windowWidth <= 1728) {
-    return Math.max(490, Math.floor(windowHeight * 0.62)); // ~15" laptops
-  }
-
-  return Math.max(520, Math.floor(windowHeight * 0.66));
+  return Math.max(470, Math.floor(windowHeight * 0.50)); // MacBook Air 13.5
 }
 
 function windowResized() {
@@ -62,9 +58,8 @@ function windowResized() {
 }
 
 function getLaptopPreset() {
-  if (windowWidth <= 1440) return "laptop-13";
-  if (windowWidth <= 1728) return "laptop-15";
-  return "desktop";
+  if (windowWidth <= 750) return "laptop-14"; // HP EliteBook
+  return "laptop-13"; // MacBook Air
 }
 
 function applyLaptopPreset() {
@@ -127,15 +122,13 @@ function generatePreviewMicrobes(count) {
 
 function getConfirmDishLayout() {
   const cx = width / 2;
-  let dishScale = 0.89;
-  let cyRatio = 0.515;
+  let dishScale = 0.90;
+  let cyRatio = 0.5;
 
-  if (windowWidth <= 1440) {
-    dishScale = 0.85;
-    cyRatio = 0.475;
-  } else if (windowWidth <= 1728) {
-    dishScale = 0.87;
-    cyRatio = 0.505;
+  if (windowWidth <= 750) {
+    // HP EliteBook 14
+    dishScale = 0.84;
+    cyRatio = 0.47;
   }
 
   const dishSize = Math.min(width, height) * dishScale;
@@ -165,11 +158,18 @@ function createAntibioticDrop(startFrame = 0) {
   const cx = width / 2;
   const cy = height / 2;
   const minSeparation = 95;
+  // Some doses spread a bit further, and the first dose has a better chance
+  // of being effective so early treatment succeeds more often.
+  const isFirstDose = startFrame === 0;
+  const spreadChance = isFirstDose ? 0.5 : 0.34;
+  const spreadBoost = random() < spreadChance
+    ? random(isFirstDose ? 1.18 : 1.12, isFirstDose ? 1.34 : 1.28)
+    : 1;
 
   // First dose can be anywhere in the safe area.
   if (antibioticDrops.length === 0) {
     const p = randomPointInCircle(cx, cy, safeDropRadius);
-    return { x: p.x, y: p.y, startFrame };
+    return { x: p.x, y: p.y, startFrame, spreadBoost };
   }
 
   // Try to place new dose far from existing doses.
@@ -185,7 +185,7 @@ function createAntibioticDrop(startFrame = 0) {
     }
 
     if (nearestDist >= minSeparation) {
-      return { x: p.x, y: p.y, startFrame };
+      return { x: p.x, y: p.y, startFrame, spreadBoost };
     }
 
     if (nearestDist > bestNearestDist) {
@@ -196,7 +196,7 @@ function createAntibioticDrop(startFrame = 0) {
 
   // Fallback: best available point even if ideal gap wasn't found.
   const fallback = bestPoint || randomPointInCircle(cx, cy, safeDropRadius);
-  return { x: fallback.x, y: fallback.y, startFrame };
+  return { x: fallback.x, y: fallback.y, startFrame, spreadBoost };
 }
 
 function maybeTriggerRandomResistance(triggerTime, chance = 0.18) {
@@ -222,7 +222,6 @@ function getEndActionsHTML() {
   if (scenario === "bacteria" && stoppedTreatmentEarly) {
     return `
       <div class="end-actions">
-        <button class="decision-btn more" onclick="addMoreAntibiotic()">Add more antibiotic</button>
         <button class="reset-btn" onclick="backToChooseCharacter()">Start again</button>
       </div>
     `;
@@ -234,11 +233,18 @@ function getEndActionsHTML() {
     !resistantRebound &&
     !stoppedTreatmentEarly;
 
+  if (!showDoseChoices) {
+    return `
+      <div class="end-actions">
+        <button class="reset-btn" onclick="backToChooseCharacter()">Start again</button>
+      </div>
+    `;
+  }
+
   return `
     <div class="end-actions">
-      ${showDoseChoices ? '<button class="decision-btn more" onclick="addMoreAntibiotic()">More antibiotic</button>' : ""}
-      ${showDoseChoices ? '<button class="decision-btn no" onclick="completeTreatment()">Treatment complete</button>' : '<button class="reset-btn" onclick="reset()">Try another infection</button>'}
-      ${showDoseChoices ? '' : '<button class="decision-btn alt" onclick="backToTreatmentChoice()">Different treatment option</button>'}
+      <button class="decision-btn more" onclick="addMoreAntibiotic()">More antibiotic</button>
+      <button class="decision-btn no" onclick="completeTreatment()">Treatment complete</button>
     </div>
   `;
 }
@@ -253,7 +259,7 @@ function setupUI() {
 
   if (title) {
     if (state === "chooseCharacter") {
-      title.textContent = "Choose your character";
+      title.textContent = "Choose a microbe!";
       title.classList.remove("hidden");
     } else {
       title.classList.add("hidden");
@@ -263,7 +269,6 @@ function setupUI() {
   if (state === "chooseCharacter") {
   ui.innerHTML = `
     <section class="char-section">
-      <p class="char-intro">Pick one of these microbes to learn about:</p>
       <div class="char-grid">
         <button onclick="choose('bacteria', 'bac/ecoli.png')" class="char-btn" title="E. coli bacteria">
           <img src="bac/ecoli.png" alt="E. coli Bacteria">
@@ -283,6 +288,7 @@ function setupUI() {
         </button>
       </div>
     </section>
+    <p class="char-intro">We will be seeing what happens when we treat different microbes with antibiotics, and how we can use computers to show us what might happen in real life scenarios.</p>
     <p class="ai-disclaimer">Images generated with AI</p>
   `;
 }
@@ -293,9 +299,9 @@ function setupUI() {
     let treatmentText = "Would you like to treat it with antibiotics?";
     
     if (scenario === "virus") {
-      treatmentText = "Would you like to try antibiotics? (Hint: antibiotics work on bacteria, not viruses!)";
+      treatmentText = "Would you like to try antibiotics? (Hint: antibiotics work on bacteria, not viruses.)";
     } else if (scenario === "superbug") {
-      treatmentText = "This is a superbug that's already resistant to antibiotics. Would you like to try treating it anyway?";
+      treatmentText = "This is a superbug that's resistant to some antibiotics. Would you like to try treating it anyway?";
     }
     
     ui.innerHTML = `
@@ -336,10 +342,11 @@ function setupUI() {
     
     if (resistantRebound) {
       if (scenario === "virus") {
-        runTitle = "❌ Antibiotics don't work on viruses! The virus keeps growing.";
+        runTitle = "❌ Antibiotics don't work on viruses!";
+        additionalMessage = `<p class="run-subtitle">We need different drugs to treat viral infections. The virus remains active.</p>`;
       } else if (scenario === "superbug") {
-        runTitle = "❌ This superbug is already resistant to antibiotics. They won't work!";
-        additionalMessage = `<p class="run-subtitle">This is why we need research into antibiotic resistance and how we can develop new treatments for resistant infections. Scientists are working to find new medicines and strategies to fight superbugs!</p>`;
+        runTitle = "❌ This superbug is resistant to some antibiotics.";
+        additionalMessage = `<p class="run-subtitle">These antibiotics may not work, so we need to choose treatment carefully.</p>`;
       } else {
         runTitle = "⚠️ Oh no! The bacteria developed resistance to the antibiotic.";
       }
@@ -362,35 +369,28 @@ function setupUI() {
     let messageText = "";
     
     if (scenario === "virus") {
-      messageText = `<p class="run-title">🎉 Yay! You did the right thing! This is a virus, so it requires different treatment than antibiotics. Antibiotics only work on bacteria, not viruses. A virus needs its own special treatment!</p>`;
+      messageText = `
+        <p class="run-title">🎉 Great choice not to use antibiotics for a virus!</p>
+        <p class="run-subtitle">Viruses need different treatments. A doctor can help choose the right treatment.</p>
+      `;
     } else if (scenario === "superbug") {
-      messageText = `<p class="run-title">✓ That was the right choice! These bacteria are resistant to these antibiotics. We're better off finding out more about the infection and then making a more informed treatment strategy.</p>`;
+      messageText = `
+        <p class="run-title">✓ That was the right choice!</p>
+        <p class="run-subtitle">These bacteria are resistant to these antibiotics. We're better off finding out more about the infection and then making a more informed treatment strategy.</p>
+      `;
     } else {
-      messageText = `<p class="run-title">Without proper treatment, the infection keeps growing and the person gets sicker.</p>`;
+      messageText = `
+        <p class="run-title">⚠️ Without proper treatment, the infection keeps growing.</p>
+        <p class="run-subtitle">The patient doesn't get better, they might need antibiotics to treat this infection.</p>
+      `;
     }
     
     if (ui) {
       ui.innerHTML = messageText;
     }
     
-    if (bottomUI) {
-      let buttonsHTML = `
-        <div class="end-actions">
-          <button class="decision-btn yes" onclick="backToChooseCharacter()">Start again with treatment</button>
-          <button class="reset-btn" onclick="backToChooseCharacter()">Try another infection</button>
-        </div>
-      `;
-      
-      if (scenario === "bacteria" || scenario === "virus" || scenario === "superbug") {
-        buttonsHTML = `
-          <div class="end-actions">
-            <button class="reset-btn" onclick="backToChooseCharacter()">Start again</button>
-          </div>
-        `;
-      }
-      
-      bottomUI.innerHTML = buttonsHTML;
-    }
+    // Don't modify bottomUI here - let drawPatientArrow() handle the panel + buttons
+    return;
   }
   
 }
@@ -461,7 +461,7 @@ window.giveAntibiotic = function() {
   }
   // Bacteria have random resistance chance
   else {
-    const jumpedToResistance = maybeTriggerRandomResistance(timer, 0.06);
+    const jumpedToResistance = maybeTriggerRandomResistance(timer, 0.03);
     if (jumpedToResistance) {
       nextActionTime = timer + 360;
     }
@@ -504,7 +504,7 @@ window.addMoreAntibiotic = function() {
     resetShown = false;
     stoppedTreatmentEarly = false;
 
-    const jumpedToResistance = maybeTriggerRandomResistance(timer, 0.12);
+    const jumpedToResistance = maybeTriggerRandomResistance(timer, 0.095);
     if (!jumpedToResistance) {
       nextActionTime = timer + BACTERIA_ARRIVAL_FRAMES + BACTERIA_EFFECT_FRAMES + 40;
     }
@@ -613,8 +613,11 @@ function initInfection() {
     return;
   }
 
+  const layout = getConfirmDishLayout();
+  const spreadRadius = layout.microbeRadius + 20;
+
   for (let i = 0; i < 80; i++) {
-    const p = randomPointInCircle(width / 2, height / 2, 170);
+    const p = randomPointInCircle(layout.cx, layout.cy, spreadRadius);
     bacteria.push({
       x: p.x,
       y: p.y,
@@ -774,7 +777,10 @@ function runBacteriaScenario() {
   const ui = document.getElementById("ui");
   if (ui && resistantRebound) {
     const runTitle = "Uh oh, the bacteria has developed resistance to this antibiotic.";
-    ui.innerHTML = `<p class="run-title">❌ ${runTitle}</p>`;
+    ui.innerHTML = `
+      <p class="run-title">❌ ${runTitle}</p>
+      <p class="run-subtitle">Repeated exposure to antibiotics means bacteria are more able to develop resistance.</p>
+    `;
   }
 
   const arrivalFrames = BACTERIA_ARRIVAL_FRAMES;
@@ -787,6 +793,7 @@ function runBacteriaScenario() {
 
   for (let i = 0; i < antibioticDrops.length; i++) {
     const drop = antibioticDrops[i];
+    const spreadBoost = drop.spreadBoost || 1;
     const localTime = max(0, timer - (drop.startFrame || 0));
     const localAnim = min(1, localTime / arrivalFrames);
     const dropAnimEase = easeOutCubic(localAnim);
@@ -814,14 +821,14 @@ function runBacteriaScenario() {
       effectProgress = min(1, (localTime - arrivalFrames) / effectFrames);
     }
 
-    const killRadius = 20 + 78 * effectProgress;
-    const fadeRadius = killRadius + 30;
+    const killRadius = (18 + 62 * effectProgress) * spreadBoost;
+    const fadeRadius = killRadius + 24;
 
     // Visible antibiotic zone once drop lands
     if (localAnim >= 1) {
       fill(0, 150, 255, 70 + 70 * effectProgress);
       noStroke();
-      ellipse(drop.x, drop.y, killRadius * 1.7);
+      ellipse(drop.x, drop.y, killRadius * 1.45);
       drawAntibioticIcon(drop.x, drop.y, 0.68);
     }
 
@@ -839,9 +846,12 @@ function runBacteriaScenario() {
   const totalCount = bacteria.length;
 
   if (resistantRebound) {
+    const layout = getConfirmDishLayout();
+    const spreadRadius = layout.microbeRadius + 20;
+
     // After repeated dosing, resistant bacteria regrow and patient worsens.
     if (frameCount % 7 === 0 && bacteria.length < 140) {
-      const p = randomPointInCircle(width / 2, height / 2, 170);
+      const p = randomPointInCircle(layout.cx, layout.cy, spreadRadius);
       bacteria.push({
         x: p.x,
         y: p.y,
@@ -879,12 +889,18 @@ function runBacteriaScenario() {
   }
 
   if (stoppedTreatmentEarly) {
+    const layout = getConfirmDishLayout();
+    const spreadRadius = layout.microbeRadius + 20;
+
     if (ui) {
-      ui.innerHTML = `<p class="run-title">⚠️ Enough healthy bacteria remain to keep dividing, the infection remains.</p>`;
+      ui.innerHTML = `
+        <p class="run-title">⚠️ The infection remains.</p>
+        <p class="run-subtitle">Enough healthy bacteria remain for the bacteria to survive and the patient doesn't get better.</p>
+      `;
     }
 
     if (frameCount % 14 === 0 && bacteria.length < 140) {
-      const p = randomPointInCircle(width / 2, height / 2, 170);
+      const p = randomPointInCircle(layout.cx, layout.cy, spreadRadius);
       bacteria.push({
         x: p.x,
         y: p.y,
@@ -959,9 +975,11 @@ function runBacteriaScenario() {
     }
   }
 
-  // Determine if infection is cured (less than 30% of bacteria remain)
+  // Determine if infection is cured. A strong first dose can clear infection
+  // at a slightly higher remaining-bacteria threshold.
   const bacteriaPercentageRemaining = totalCount > 0 ? aliveCount / totalCount : 0;
-  let cured = bacteriaPercentageRemaining < 0.3;
+  const curedThreshold = antibioticDoseCount <= 1 ? 0.34 : 0.3;
+  let cured = bacteriaPercentageRemaining < curedThreshold;
   const killedFraction = totalCount > 0 ? 1 - aliveCount / totalCount : 0;
   const dose1Progress = doseEffects[0] ? doseEffects[0].effectProgress : 0;
   const dose2Progress = doseEffects[1] ? doseEffects[1].effectProgress : 0;
@@ -992,7 +1010,10 @@ function runBacteriaScenario() {
   
   if (cured && resetShown) {
     if (ui) {
-      ui.innerHTML = `<p class="run-title">🎉 Yay! The bacteria have successfully completed the treatment.</p>`;
+      ui.innerHTML = `
+        <p class="run-title">🎉 Yay! The infection has been successfully treated.</p>
+        <p class="run-subtitle">The antibiotics have killed enough bacteria, and the patient has recovered.</p>
+      `;
     }
 
     const bottomUI = document.getElementById("bottom-ui");
@@ -1013,8 +1034,10 @@ function runSuperbugScenario() {
   const arrivalFrames = BACTERIA_ARRIVAL_FRAMES;
   const effectFrames = BACTERIA_EFFECT_FRAMES;
 
-  const dishCx = width / 2;
-  const dishCy = height / 2;
+  const layout = getConfirmDishLayout();
+  const dishCx = layout.cx;
+  const dishCy = layout.cy;
+  const spreadRadius = layout.microbeRadius + 20;
 
   // Draw antibiotic drops coming in (but they have no effect on superbug)
   for (let i = 0; i < antibioticDrops.length; i++) {
@@ -1045,7 +1068,7 @@ function runSuperbugScenario() {
     if (localAnim >= 1) {
       fill(0, 150, 255, 50);
       noStroke();
-      ellipse(drop.x, drop.y, 150);
+      ellipse(drop.x, drop.y, 108);
       drawAntibioticIcon(drop.x, drop.y, 0.68);
     }
   }
@@ -1053,7 +1076,7 @@ function runSuperbugScenario() {
   // When resistant, superbug cells turn red and rapidly regrow
   if (resistantRebound) {
     if (frameCount % 7 === 0 && bacteria.length < 140) {
-      const p = randomPointInCircle(dishCx, dishCy, 170);
+      const p = randomPointInCircle(dishCx, dishCy, spreadRadius);
       bacteria.push({
         x: p.x,
         y: p.y,
@@ -1094,7 +1117,7 @@ function runSuperbugScenario() {
 
   // Superbug cells keep growing despite antibiotic (before resistance)
   if (frameCount % 10 === 0 && bacteria.length < 160) {
-    const p = randomPointInCircle(dishCx, dishCy, 170);
+    const p = randomPointInCircle(dishCx, dishCy, spreadRadius);
     bacteria.push({
       x: p.x,
       y: p.y,
@@ -1136,8 +1159,10 @@ function runVirusScenario() {
   const arrivalFrames = BACTERIA_ARRIVAL_FRAMES;
   const effectFrames = BACTERIA_EFFECT_FRAMES;
 
-  const dishCx = width / 2;
-  const dishCy = height / 2;
+  const layout = getConfirmDishLayout();
+  const dishCx = layout.cx;
+  const dishCy = layout.cy;
+  const spreadRadius = layout.microbeRadius + 20;
 
   // Draw antibiotic drops coming in (but they have no effect on virus)
   for (let i = 0; i < antibioticDrops.length; i++) {
@@ -1168,14 +1193,14 @@ function runVirusScenario() {
     if (localAnim >= 1) {
       fill(0, 150, 255, 50);
       noStroke();
-      ellipse(drop.x, drop.y, 150);
+      ellipse(drop.x, drop.y, 108);
       drawAntibioticIcon(drop.x, drop.y, 0.68);
     }
   }
 
   // Virus cells keep growing despite antibiotic
   if (frameCount % 10 === 0 && bacteria.length < 160) {
-    const p = randomPointInCircle(width / 2, height / 2, 170);
+    const p = randomPointInCircle(dishCx, dishCy, spreadRadius);
     bacteria.push({
       x: p.x,
       y: p.y,
@@ -1222,12 +1247,6 @@ function drawPatientArrow(cured, healthProgress = 0) {
   const bottomUI = document.getElementById("bottom-ui");
   if (!bottomUI) return;
 
-  // Avoid replacing button DOM every frame once final actions are shown,
-  // otherwise click interactions can be interrupted.
-  if (resetShown && bottomUI.querySelector(".end-actions")) {
-    return;
-  }
-
   const panelHTML = `
     <div class="human-response-panel">
       <div class="human-response-title">Human response</div>
@@ -1243,10 +1262,28 @@ function drawPatientArrow(cured, healthProgress = 0) {
     </div>
   `;
 
-  if (resetShown) {
-    bottomUI.innerHTML = panelHTML + getEndActionsHTML();
+  // If final actions are shown, just update the panel part without replacing buttons
+  if (resetShown && bottomUI.querySelector(".end-actions")) {
+    const existingPanel = bottomUI.querySelector(".human-response-panel");
+    if (existingPanel) {
+      existingPanel.outerHTML = panelHTML;
+    }
   } else {
-    bottomUI.innerHTML = panelHTML;
+    if (resetShown) {
+      let actionsHTML;
+      if (state === "runNoTreatment") {
+        actionsHTML = `
+          <div class="end-actions">
+            <button class="reset-btn" onclick="backToChooseCharacter()">Start again</button>
+          </div>
+        `;
+      } else {
+        actionsHTML = getEndActionsHTML();
+      }
+      bottomUI.innerHTML = panelHTML + actionsHTML;
+    } else {
+      bottomUI.innerHTML = panelHTML;
+    }
   }
 }
 
