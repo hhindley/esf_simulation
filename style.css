@@ -178,6 +178,33 @@ body[data-screen="laptop-15"] #bottom-ui {
   min-height: auto;
 }
 
+body[data-screen="laptop-14"] #screen-title {
+  margin: 18px 0 14px;
+}
+
+body[data-screen="laptop-14"] .char-intro {
+  margin: 20px 0 10px 0;
+  font-size: clamp(0.82rem, 1.4vw, 0.95rem);
+}
+
+body[data-screen="laptop-14"] #canvas-wrap {
+  margin-top: 8px;
+}
+
+body[data-screen="laptop-14"] .prompt-title,
+body[data-screen="laptop-14"] .run-title {
+  margin-top: 16px;
+}
+
+body[data-screen="laptop-14"] .char-btn {
+  width: clamp(96px, 10vw, 128px);
+  height: clamp(96px, 10vw, 128px);
+}
+
+body[data-screen="laptop-14"] .char-grid {
+  gap: clamp(10px, 1.4vw, 16px);
+}
+
 .end-actions {
   display: flex;
   justify-content: center;

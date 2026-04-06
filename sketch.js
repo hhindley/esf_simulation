@@ -18,14 +18,29 @@ let resistantRebound = false;
 let reboundStartTime = 0;
 let stoppedTreatmentEarly = false;
 let earlyStopStartTime = 0;
+let lastHumanResponseKey = "";
 
 // ====== Setup ======
 function setup() {
+  // Lower pixel density improves performance on lower-powered devices.
+  pixelDensity(1);
   const cnv = createCanvas(getCanvasWidth(), getCanvasHeight());
   cnv.parent("canvas-wrap");
   textAlign(CENTER, CENTER);
   applyLaptopPreset();
   setupUI();
+}
+
+function isLowSpecDevice() {
+  return windowWidth <= 750;
+}
+
+function capForDevice(defaultCap, lowCap) {
+  return isLowSpecDevice() ? lowCap : defaultCap;
+}
+
+function tickEvery(defaultFrames, lowSpecFrames) {
+  return frameCount % (isLowSpecDevice() ? lowSpecFrames : defaultFrames) === 0;
 }
 
 // ====== Draw Loop ======
@@ -65,6 +80,8 @@ function getLaptopPreset() {
 function applyLaptopPreset() {
   if (!document || !document.body) return;
   document.body.setAttribute("data-screen", getLaptopPreset());
+  // Keep animation smoother on 8GB HP devices.
+  frameRate(isLowSpecDevice() ? 45 : 60);
 }
 
 // ====== Random Point Inside Circle ======
@@ -256,6 +273,7 @@ function setupUI() {
   const title = document.getElementById("screen-title");
   ui.innerHTML = "";
   if (bottomUI) bottomUI.innerHTML = "";
+  lastHumanResponseKey = "";
 
   if (title) {
     if (state === "chooseCharacter") {
@@ -687,7 +705,7 @@ function runNoTreatment() {
   const spreadRadius = layout.microbeRadius + 20;
 
   // Infection spreads rapidly when no antibiotic is used, within dish bounds
-  if (frameCount % 20 === 0 && bacteria.length < 200) {
+  if (tickEvery(20, 28) && bacteria.length < capForDevice(200, 150)) {
     const p = randomPointInCircle(cx, cy, spreadRadius);
     bacteria.push({
       x: p.x,
@@ -850,7 +868,7 @@ function runBacteriaScenario() {
     const spreadRadius = layout.microbeRadius + 20;
 
     // After repeated dosing, resistant bacteria regrow and patient worsens.
-    if (frameCount % 7 === 0 && bacteria.length < 140) {
+    if (tickEvery(7, 10) && bacteria.length < capForDevice(140, 115)) {
       const p = randomPointInCircle(layout.cx, layout.cy, spreadRadius);
       bacteria.push({
         x: p.x,
@@ -899,7 +917,7 @@ function runBacteriaScenario() {
       `;
     }
 
-    if (frameCount % 14 === 0 && bacteria.length < 140) {
+    if (tickEvery(14, 18) && bacteria.length < capForDevice(140, 115)) {
       const p = randomPointInCircle(layout.cx, layout.cy, spreadRadius);
       bacteria.push({
         x: p.x,
@@ -1075,7 +1093,7 @@ function runSuperbugScenario() {
 
   // When resistant, superbug cells turn red and rapidly regrow
   if (resistantRebound) {
-    if (frameCount % 7 === 0 && bacteria.length < 140) {
+    if (tickEvery(7, 10) && bacteria.length < capForDevice(140, 115)) {
       const p = randomPointInCircle(dishCx, dishCy, spreadRadius);
       bacteria.push({
         x: p.x,
@@ -1116,7 +1134,7 @@ function runSuperbugScenario() {
   }
 
   // Superbug cells keep growing despite antibiotic (before resistance)
-  if (frameCount % 10 === 0 && bacteria.length < 160) {
+  if (tickEvery(10, 14) && bacteria.length < capForDevice(160, 130)) {
     const p = randomPointInCircle(dishCx, dishCy, spreadRadius);
     bacteria.push({
       x: p.x,
@@ -1199,7 +1217,7 @@ function runVirusScenario() {
   }
 
   // Virus cells keep growing despite antibiotic
-  if (frameCount % 10 === 0 && bacteria.length < 160) {
+  if (tickEvery(10, 14) && bacteria.length < capForDevice(160, 130)) {
     const p = randomPointInCircle(dishCx, dishCy, spreadRadius);
     bacteria.push({
       x: p.x,
@@ -1243,9 +1261,17 @@ function runVirusScenario() {
 function drawPatientArrow(cured, healthProgress = 0) {
   const p = constrain(healthProgress, 0, 1);
   const status = cured ? "Healthy" : p > 0.2 ? "Recovering" : "Unwell";
+  const moodEmoji = cured ? "😄" : p > 0.2 ? "🙂" : "😷";
   const percent = Math.round(p * 100);
   const bottomUI = document.getElementById("bottom-ui");
   if (!bottomUI) return;
+
+  const actionMode = resetShown ? (state === "runNoTreatment" ? "restart" : "end") : "none";
+  const responseKey = `${state}|${scenario}|${percent}|${status}|${moodEmoji}|${cured}|${actionMode}|${antibioticDoseCount}|${resistantRebound}|${stoppedTreatmentEarly}`;
+  if (responseKey === lastHumanResponseKey && bottomUI.querySelector(".human-response-panel")) {
+    return;
+  }
+  lastHumanResponseKey = responseKey;
 
   const panelHTML = `
     <div class="human-response-panel">
@@ -1257,7 +1283,7 @@ function drawPatientArrow(cured, healthProgress = 0) {
           <div class="human-progress-fill" style="width: ${percent}%"></div>
           <div class="human-progress-dot" style="left: calc(${percent}% - 8px)"></div>
         </div>
-        <span class="human-label right">${status} ${cured ? "😄" : p > 0.2 ? "🙂" : "😷"}</span>
+        <span class="human-label right">${status} ${moodEmoji}</span>
       </div>
     </div>
   `;
