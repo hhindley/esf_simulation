@@ -21,6 +21,7 @@ let earlyStopStartTime = 0;
 let lastHumanResponseKey = "";
 let petriDishLayer = null;
 let petriDishCacheKey = "";
+let appliedFrameRate = null;
 
 function setUIMessageIfChanged(key, html) {
   const ui = document.getElementById("ui");
@@ -81,6 +82,7 @@ function ensurePetriDishLayer(layout) {
 
 // ====== Draw Loop ======
 function draw() {
+  applyPerformanceProfile();
   clear();
 
   if (state === "chooseCharacter") drawIntro();
@@ -89,6 +91,18 @@ function draw() {
   else if (state === "confirmAntibiotic") showInfectionSpread();
   else if (state === "runScenario") runScenario();
   else if (state === "runNoTreatment") runNoTreatment();
+}
+
+function applyPerformanceProfile() {
+  let targetFps = 60;
+  if (isLowSpecDevice()) {
+    targetFps = state === "runScenario" && resistantRebound ? 36 : 45;
+  }
+
+  if (appliedFrameRate !== targetFps) {
+    frameRate(targetFps);
+    appliedFrameRate = targetFps;
+  }
 }
 
 function getCanvasWidth() {
@@ -116,8 +130,7 @@ function getLaptopPreset() {
 function applyLaptopPreset() {
   if (!document || !document.body) return;
   document.body.setAttribute("data-screen", getLaptopPreset());
-  // Keep animation smoother on 8GB HP devices.
-  frameRate(isLowSpecDevice() ? 45 : 60);
+  appliedFrameRate = null;
 }
 
 // ====== Random Point Inside Circle ======
@@ -900,7 +913,7 @@ function runBacteriaScenario() {
     const spreadRadius = layout.microbeRadius + 20;
 
     // After repeated dosing, resistant bacteria regrow and patient worsens.
-    if (tickEvery(7, 12) && bacteria.length < capForDevice(140, 115)) {
+    if (tickEvery(16, 28) && bacteria.length < capForDevice(85, 50)) {
       const p = randomPointInCircle(layout.cx, layout.cy, spreadRadius);
       bacteria.push({
         x: p.x,
@@ -914,7 +927,7 @@ function runBacteriaScenario() {
     for (let b of bacteria) {
       b.alpha = min(255, b.alpha + 1.6);
 
-      if (selectedSpriteImage) {
+      if (!isLowSpecDevice() && selectedSpriteImage) {
         imageMode(CENTER);
         push();
         tint(255, 70, 70, b.alpha);
@@ -1132,7 +1145,7 @@ function runSuperbugScenario() {
 
   // When resistant, superbug cells turn red and rapidly regrow
   if (resistantRebound) {
-    if (tickEvery(7, 12) && bacteria.length < capForDevice(140, 115)) {
+    if (tickEvery(16, 28) && bacteria.length < capForDevice(85, 50)) {
       const p = randomPointInCircle(dishCx, dishCy, spreadRadius);
       bacteria.push({
         x: p.x,
@@ -1148,7 +1161,7 @@ function runSuperbugScenario() {
     for (let b of bacteria) {
       b.alpha = min(255, b.alpha + 1.6);
 
-      if (selectedSpriteImage) {
+      if (!isLowSpecDevice() && selectedSpriteImage) {
         imageMode(CENTER);
         push();
         tint(255, 70, 70, b.alpha);
