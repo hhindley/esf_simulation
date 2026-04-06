@@ -1311,6 +1311,10 @@ function runVirusScenario() {
 
 // ====== Draw Patient Arrow ======
 function drawPatientArrow(cured, healthProgress = 0) {
+  if (isLowSpecDevice() && state === "runScenario" && resistantRebound && frameCount % 4 !== 0) {
+    return;
+  }
+
   const p = constrain(healthProgress, 0, 1);
   const status = cured ? "Healthy" : p > 0.2 ? "Recovering" : "Unwell";
   const moodEmoji = cured ? "😄" : p > 0.2 ? "🙂" : "😷";
@@ -1332,21 +1336,19 @@ function drawPatientArrow(cured, healthProgress = 0) {
         <span class="human-label left">🤒 Sick</span>
         <div class="human-progress-wrap">
           <div class="human-progress-track"></div>
-          <div class="human-progress-fill" style="width: ${percent}%"></div>
-          <div class="human-progress-dot" style="left: calc(${percent}% - 8px)"></div>
+          <div class="human-progress-fill"></div>
+          <div class="human-progress-dot"></div>
         </div>
-        <span class="human-label right">${status} ${moodEmoji}</span>
+        <span class="human-label right human-status-right"></span>
       </div>
     </div>
   `;
 
-  // If final actions are shown, just update the panel part without replacing buttons
-  if (resetShown && bottomUI.querySelector(".end-actions")) {
-    const existingPanel = bottomUI.querySelector(".human-response-panel");
-    if (existingPanel) {
-      existingPanel.outerHTML = panelHTML;
-    }
-  } else {
+  const needsEndActions = resetShown;
+  const hasEndActions = !!bottomUI.querySelector(".end-actions");
+  let panel = bottomUI.querySelector(".human-response-panel");
+
+  if (!panel || needsEndActions !== hasEndActions) {
     if (resetShown) {
       let actionsHTML;
       if (state === "runNoTreatment") {
@@ -1362,7 +1364,18 @@ function drawPatientArrow(cured, healthProgress = 0) {
     } else {
       bottomUI.innerHTML = panelHTML;
     }
+    panel = bottomUI.querySelector(".human-response-panel");
   }
+
+  if (!panel) return;
+
+  panel.classList.toggle("low-spec", isLowSpecDevice() && state === "runScenario" && resistantRebound);
+  const fill = panel.querySelector(".human-progress-fill");
+  const dot = panel.querySelector(".human-progress-dot");
+  const statusRight = panel.querySelector(".human-status-right");
+  if (fill) fill.style.width = `${percent}%`;
+  if (dot) dot.style.left = `calc(${percent}% - 8px)`;
+  if (statusRight) statusRight.textContent = `${status} ${moodEmoji}`;
 }
 
 // ====== Intro / Confirm Screens ======

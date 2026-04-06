@@ -97,6 +97,11 @@ canvas {
   box-shadow: 0 8px 20px rgba(30, 70, 130, 0.12);
 }
 
+.human-response-panel.low-spec {
+  box-shadow: none;
+  background: rgba(255, 255, 255, 0.85);
+}
+
 .human-response-title {
   font-size: 0.92rem;
   font-weight: 700;
